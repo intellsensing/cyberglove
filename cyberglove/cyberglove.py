@@ -11,16 +11,16 @@ def load_calibration(cal_path, n_df):
     Parameters
     ----------
     cal_path : string
-        Calibration file path
+        Calibration file path.
     n_df : integer (18 or 22)
-        Data glove model (18-DOF or 22-DOF)
+        Data glove model (18-DOF or 22-DOF).
 
     Returns
     -------
     offset : array, shape = (n_df,)
-        Sensor offsets
+        Sensor offsets.
     gain : array, shape = (n_df,)
-        Sensor gains
+        Sensor gains.
 
     Notes
     -----
@@ -62,16 +62,16 @@ def calibrate_data(data, offset, gain):
     Parameters
     ----------
     data : array, shape = (n_df,)
-        Raw CyberGlove data
+        Raw CyberGlove data.
     offset : array, shape = (n_df,)
-        Sensor offsets
+        Sensor offsets.
     gain : array, shape = (n_df,)
-        Sensor offsets
+        Sensor offsets.
 
     Returns
     -------
     data : array, shape = (n_df,)
-        Calibrated CyberGlove data
+        Calibrated CyberGlove data.
     """
     return data * gain + offset
 
@@ -82,27 +82,29 @@ class CyberGlove(object):
     Parameters
     ----------
     n_df : integer (18 or 22)
-        Data glove model (18-DOF or 22-DOF)
+        Data glove model (18-DOF or 22-DOF).
     s_port : str, optional (default: None)
         Serial port name (e.g., 'COM1' in Windows). If None, the first one
-        available will be used
+        available will be used.
     baud_rate : int, optional (default: 115200)
-        Baud rate
+        Baud rate.
+    samples_per_read : int, optional (default: 1)
+        Number of samples per channel to read in each read operation.
     cal_path : string, optional (default: None)
-        Calibration file path
+        Calibration file path.
 
     Attributes
     ----------
     calibration_ : boolean
-        True if cal_path has been provided
+        True if cal_path has been provided.
     offset_ : array, shape = (n_df,)
-        Sensor offsets (if cal_path is not None)
+        Sensor offsets (if cal_path is not None).
     gain_ : array, shape = (n_df,)
-        Sensor gains (if cal_path is not None)
+        Sensor gains (if cal_path is not None).
     """
 
     def __init__(self, n_df, s_port=None, baud_rate=115200,
-                 cal_path=None):
+                 samples_per_read=1, cal_path=None):
 
         # If port is not given use the first one available
         if s_port == None:
@@ -154,23 +156,35 @@ class CyberGlove(object):
         Request a sample of data from the device.
 
         This is a blocking method, meaning it returns only once the requested
-        number of samples are available.
+        number of samples are available. The device does not support reading
+        more than one samples at a time so this is implemented in a for loop.
+
+        Returns
+        -------
+        data : ndarray, shape=(n_df, samples_per_read)
+            Data read from the device. Each sensor is a row and each column
+            is a point in time.
         """
 
         fmt = '@' + "B"*self.__bytesPerRead # Format for unpacking binary data
-        self.si.flushInput()
-        raw_data = None
-        while raw_data is None:
-            nb = self.si.write(bytes('\x47', 'utf'))
-            if nb == 1:
-                msg = self.si.read(size=self.__bytesPerRead)
-                if len(msg) is self.__bytesPerRead:
-                    raw_data = struct.unpack(fmt, msg)
-                    raw_data = np.asarray(raw_data)
+        data = np.zeros((self.n_df, self.samples_per_read))
+        for i in range(self.samples_per_read):
+            self.si.flushInput()
+            raw_data = None
+            while raw_data is None:
+                nb = self.si.write(bytes('\x47', 'utf'))
+                if nb == 1:
+                    msg = self.si.read(size=self.__bytesPerRead)
+                    if len(msg) is self.__bytesPerRead:
+                        raw_data = struct.unpack(fmt, msg)
+                        raw_data = np.asarray(raw_data)
+                        raw_data = raw_data[1:-1] # First and last bytes are reserved
+                        if self.calibration_:
+                            data[:, i] = calibrate_data(
+                                raw_data,
+                                self.cal_offset_,
+                                self.cal_gain_)
+                        else:
+                            data[:, i] = raw_data
 
-        raw_data = raw_data[1:-1] # First and last bytes are reserved
-
-        if self.calibration_:
-            return calibrate_data(raw_data, self.cal_offset_, self.cal_gain_)
-        else:
-            return raw_data
+        return data
