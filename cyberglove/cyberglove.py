@@ -1,6 +1,8 @@
 import numpy as np
 import struct
-import serial, serial.tools.list_ports
+import serial
+import serial.tools.list_ports
+
 
 def load_calibration(cal_path, n_df):
     """
@@ -34,14 +36,14 @@ def load_calibration(cal_path, n_df):
     f = open(cal_path, 'r')
     lines = f.readlines()
     if n_df == 18:
-        lines_idx_offset = [2, 3, 4, 5, 7, 8, 12, 13, 15, 17, 18, 20, 22, 23, \
+        lines_idx_offset = [2, 3, 4, 5, 7, 8, 12, 13, 15, 17, 18, 20, 22, 23,
                             25, 27, 28, 29]
-        lines_idx_gain = [2, 3, 4, 5, 7, 8, 12, 13, 10, 17, 18, 20, 22, 23, \
+        lines_idx_gain = [2, 3, 4, 5, 7, 8, 12, 13, 10, 17, 18, 20, 22, 23,
                           25, 27, 28, 29]
     elif n_df == 22:
-        lines_idx_offset = [2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 15, 17, 18, 19, \
+        lines_idx_offset = [2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 15, 17, 18, 19,
                             20, 22, 23, 24, 25, 27, 28, 29]
-        lines_idx_gain = [2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 10, 17, 18, 19, \
+        lines_idx_gain = [2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 10, 17, 18, 19,
                           20, 22, 23, 24, 25, 27, 28, 29]
     else:
         raise ValueError("Cyberglove can be either 18-DOF or 22-DOF.")
@@ -50,10 +52,12 @@ def load_calibration(cal_path, n_df):
     for line in lines_idx_offset:
         offset.append(-float(lines[line].split(' ')[6]))
     for line in lines_idx_gain:
-        gain.append(float(lines[line].split(' ')[9]) * (180 / np.pi)) # Degrees
+        gain.append(float(lines[line].split(' ')[9])
+                    * (180 / np.pi))  # Degrees
     offset = np.asarray(offset)
     gain = np.asarray(gain)
     return (offset, gain)
+
 
 def calibrate_data(data, offset, gain):
     """
@@ -74,6 +78,7 @@ def calibrate_data(data, offset, gain):
         Calibrated CyberGlove data.
     """
     return data * gain + offset
+
 
 class CyberGlove(object):
     """
@@ -107,12 +112,11 @@ class CyberGlove(object):
                  samples_per_read=1, cal_path=None):
 
         # If port is not given use the first one available
-        if s_port == None:
+        if s_port is None:
             try:
                 s_port = serial.tools.list_ports.comports()[0].device
             except StopIteration:
                 print("No serial ports found.")
-
 
         self.n_df = n_df
         self.s_port = s_port
@@ -121,9 +125,9 @@ class CyberGlove(object):
         self.cal_path = cal_path
 
         if self.n_df == 18:
-            self.__bytesPerRead = 20 # First and last bytes are reserved
+            self.__bytesPerRead = 20  # First and last bytes are reserved
         elif self.n_df == 22:
-            self.__bytesPerRead = 24 # First and last bytes are reserved
+            self.__bytesPerRead = 24  # First and last bytes are reserved
 
         self.si = serial.Serial(port=self.s_port, baudrate=self.baud_rate,
                                 timeout=0.05, writeTimeout=0.05)
@@ -167,7 +171,7 @@ class CyberGlove(object):
             is a point in time.
         """
 
-        fmt = '@' + "B"*self.__bytesPerRead # Format for unpacking binary data
+        fmt = '@' + "B" * self.__bytesPerRead  # Unpacking format
         data = np.zeros((self.n_df, self.samples_per_read))
         for i in range(self.samples_per_read):
             self.si.flushInput()
@@ -179,7 +183,7 @@ class CyberGlove(object):
                     if len(msg) is self.__bytesPerRead:
                         raw_data = struct.unpack(fmt, msg)
                         raw_data = np.asarray(raw_data)
-                        raw_data = raw_data[1:-1] # First and last bytes are reserved
+                        raw_data = raw_data[1:-1]  # Reserved bytes
                         if self.calibration_:
                             data[:, i] = calibrate_data(
                                 raw_data,
