@@ -89,11 +89,7 @@ class CyberGlove(object):
     baud_rate : int, optional (default: 115200)
         Baud rate.
     samples_per_read : int, optional (default: 1)
-<<<<<<< HEAD
         Number of samples to read in each read operation.
-=======
-        Number of samples per channel to read in each read operation.
->>>>>>> b703695... samples_per_read
     cal_path : string, optional (default: None)
         Calibration file path.
 
