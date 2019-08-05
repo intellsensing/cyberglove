@@ -130,7 +130,7 @@ class CyberGlove(object):
             self.__bytesPerRead = 24  # First and last bytes are reserved
 
         self.si = serial.Serial(port=self.s_port, baudrate=self.baud_rate,
-                                timeout=0.05, writeTimeout=0.05)
+                                timeout=1, writeTimeout=1)
         if self.cal_path is None:
             self.calibration_ = False
         else:
